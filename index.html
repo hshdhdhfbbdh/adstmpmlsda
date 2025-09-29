@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Made By King Von JOI</title>
+    <link rel="stylesheet" href="style.css">
+    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
+    <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css" />
+</head>
+<body>
+
+    <div id="page-home" class="page active">
+        <div class="content">
+            <div class="logo">🍆💦</div>
+            <h1>TempMail Service</h1>
+            <p>SN SHOP ON TOP</p>
+            <div class="button-group">
+                <a href="#page-generator" class="nav-btn" onclick="showPage('page-generator')">Generate</a>
+                <a href="#page-checker" class="nav-btn" onclick="showPage('page-checker')">Check</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="page-generator" class="page page-inner">
+        <header class="header">
+            <a href="#page-home" class="back-btn" onclick="showPage('page-home')">&larr; Back</a>
+            <h1>Generator</h1>
+        </header>
+        <div class="container">
+            <input type="number" id="num-accounts" value="1" min="1" max="50" placeholder="Number of accounts (1-50)">
+            <div class="generator-buttons">
+                <button id="generate-btn" class="btn">Generate Accounts</button>
+                <button id="stop-generate-btn" class="btn" style="display: none;">Stop</button>
+            </div>
+            <a id="download-link" style="display:none;"><button class="btn download-btn">Download Credentials</button></a>
+            <pre id="generator-output">Logs will appear here...</pre>
+        </div>
+    </div>
+
+    <div id="page-checker" class="page page-inner">
+        <header class="header">
+            <a href="#page-home" class="back-btn" onclick="showPage('page-home')">&larr; Back</a>
+            <h1>Checker</h1>
+        </header>
+        <div class="container">
+            <input type="text" id="email" placeholder="Email Address" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <input type="password" id="password" placeholder="Password">
+            <button id="login-btn" class="btn">Login and Check</button>
+            <div id="checker-output">
+                <p style="color: #6c757d; text-align: center;">Messages will appear here.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="ui.js"></script>
+
+    <py-config>
+        packages = ["requests"]
+    </py-config>
+    
+    <py-script src="main.py"></py-script>
+
+</body>
+</html>
