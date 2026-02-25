@@ -4,6 +4,7 @@ import requests
 import re
 import html
 from js import document, window
+from pyodide.ffi import create_proxy
 
 BASE_URL = "https://api.mail.tm"
 
@@ -28,13 +29,19 @@ btn_generate_more = document.getElementById("btn-generate-more")
 email_content = document.getElementById("email-content")
 raw_email_data = document.getElementById("raw-email-data")
 
+# Fallback print to console so you immediately know if HTML is mismatched
+if btn_generate is None:
+    print("CRITICAL ERROR: Elements not found. Make sure your index.html is updated!")
+
 # --- Helper Functions ---
 def update_status(text):
-    status_box.innerHTML = f"<b>{text}</b>"
+    if status_box:
+        status_box.innerHTML = f"<b>{text}</b>"
 
 def hide_all_buttons():
     for btn in [btn_generate, btn_copy_email, btn_check, btn_copy_code, btn_copy_pass, btn_show_email, btn_generate_more]:
-        btn.style.display = "none"
+        if btn:
+            btn.style.display = "none"
 
 def get_domain():
     try:
@@ -153,7 +160,6 @@ async def poll_for_email():
                     subject = full_msg.get("subject", "")
                     
                     # Extract first 6 numbers from the subject
-                    # re.sub removes non-digits. We take up to the first 6 characters.
                     all_digits = re.sub(r'\D', '', subject)
                     current_code = all_digits[:6] if len(all_digits) >= 6 else all_digits
                     
@@ -213,11 +219,12 @@ def show_email_handler(e):
         email_content.style.display = "none"
         btn_show_email.innerText = "Show Full Email"
 
-# --- Assign Event Listeners ---
-btn_generate.onclick = generate_handler
-btn_copy_email.onclick = copy_email_handler
-btn_check.onclick = check_handler
-btn_copy_code.onclick = copy_code_handler
-btn_copy_pass.onclick = copy_pass_handler
-btn_show_email.onclick = show_email_handler
-btn_generate_more.onclick = generate_handler # Restarts cycle
+# --- Assign Event Listeners safely using create_proxy ---
+if btn_generate:
+    btn_generate.onclick = create_proxy(generate_handler)
+    btn_copy_email.onclick = create_proxy(copy_email_handler)
+    btn_check.onclick = create_proxy(check_handler)
+    btn_copy_code.onclick = create_proxy(copy_code_handler)
+    btn_copy_pass.onclick = create_proxy(copy_pass_handler)
+    btn_show_email.onclick = create_proxy(show_email_handler)
+    btn_generate_more.onclick = create_proxy(generate_handler) # Restarts cycle
