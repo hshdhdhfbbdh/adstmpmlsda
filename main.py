@@ -1,53 +1,48 @@
 import asyncio
-import json
 import random
-from datetime import datetime
 import requests
-from js import document, Blob, URL
 import re
 import html
+from js import document, window
 
-# --- Global State ---
 BASE_URL = "https://api.mail.tm"
-STOP_GENERATION = False
+
+# --- Global State Variables ---
+current_email = ""
+current_password = ""
+current_token = ""
+current_code = ""
+copied_code = False
+copied_pass = False
+stop_polling = False
 
 # --- UI Element References ---
-num_accounts_input = document.getElementById("num-accounts")
-generate_btn = document.getElementById("generate-btn")
-stop_generate_btn = document.getElementById("stop-generate-btn")
-download_link = document.getElementById("download-link")
-generator_output = document.getElementById("generator-output")
-email_input = document.getElementById("email")
-password_input = document.getElementById("password")
-login_btn = document.getElementById("login-btn")
-checker_output = document.getElementById("checker-output")
+status_box = document.getElementById("status-box")
+btn_generate = document.getElementById("btn-generate")
+btn_copy_email = document.getElementById("btn-copy-email")
+btn_check = document.getElementById("btn-check")
+btn_copy_code = document.getElementById("btn-copy-code")
+btn_copy_pass = document.getElementById("btn-copy-pass")
+btn_show_email = document.getElementById("btn-show-email")
+btn_generate_more = document.getElementById("btn-generate-more")
+email_content = document.getElementById("email-content")
+raw_email_data = document.getElementById("raw-email-data")
 
-def gen_log(message):
-    generator_output.innerText += f"{message}\n"
-    generator_output.scrollTop = generator_output.scrollHeight
+# --- Helper Functions ---
+def update_status(text):
+    status_box.innerHTML = f"<b>{text}</b>"
 
-def linkify(text):
-    """Escapes text and then converts URLs into clickable HTML links for security."""
-    escaped_text = html.escape(text)
-    url_pattern = re.compile(r'(https?://[^\s&lt;&gt;&quot;]+)')
+def hide_all_buttons():
+    for btn in [btn_generate, btn_copy_email, btn_check, btn_copy_code, btn_copy_pass, btn_show_email, btn_generate_more]:
+        btn.style.display = "none"
 
-    def make_link(match):
-        url_from_escaped_text = match.group(0)
-        href_url = html.unescape(url_from_escaped_text)
-        return f'<a href="{href_url}" target="_blank" rel="noopener noreferrer">{url_from_escaped_text}</a>'
-
-    return url_pattern.sub(make_link, escaped_text)
-
-# ================================================
-# == Account Generation Logic
-# ================================================
 def get_domain():
     try:
         r = requests.get(f"{BASE_URL}/domains")
         r.raise_for_status()
         return random.choice(r.json()["hydra:member"])["domain"]
     except Exception as e:
-        gen_log(f"Error fetching domains: {e}")
+        print(f"Error fetching domains: {e}")
         return None
 
 def make_credentials():
@@ -55,179 +50,174 @@ def make_credentials():
     pwd = "Pass@" + str(random.randint(100000, 999999))
     return user, pwd
 
-async def create_account():
+# --- Application Logic ---
+async def generate_handler(e):
+    global current_email, current_password, copied_code, copied_pass, stop_polling
+    
+    # Reset states for new cycle
+    copied_code = False
+    copied_pass = False
+    stop_polling = True # Stop any lingering checkers
+    email_content.style.display = "none"
+    hide_all_buttons()
+    
+    update_status("Generating account...")
+    btn_generate.disabled = True
+    
     domain = await asyncio.to_thread(get_domain)
     if not domain:
-        gen_log("Could not get a domain. Stopping.")
-        return None, None
-
-    rate_limit_attempt = 0
-    while not STOP_GENERATION:
-        user, password = make_credentials()
-        address = f"{user}@{domain}"
-        try:
-            r = await asyncio.to_thread(
-                requests.post,
-                f"{BASE_URL}/accounts",
-                json={"address": address, "password": password}
-            )
-            if r.status_code in (200, 201):
-                gen_log(f"Success -> {address}:{password}")
-                return address, password
-            elif r.status_code == 422:
-                gen_log("Address conflict, retrying...")
-                continue
-            elif r.status_code == 429:
-                rate_limit_attempt += 1
-                wait = 2 ** rate_limit_attempt
-                gen_log(f"Rate limited. Retrying in {wait}s...")
-
-                for _ in range(wait):
-                    if STOP_GENERATION:
-                        gen_log("Generation stopped during wait.")
-                        return None, None
-                    await asyncio.sleep(1)
-                continue
-            else:
-                gen_log(f"API Error: {r.status_code} – {r.text}")
-                return None, None
-        except Exception as e:
-            gen_log(f"Request exception: {e}. Retrying in 5s...")
-            for _ in range(5):
-                if STOP_GENERATION:
-                    gen_log("Generation stopped during wait.")
-                    return None, None
-                await asyncio.sleep(1)
-
-    return None, None
-
-def stop_generator_handler(e):
-    global STOP_GENERATION
-    gen_log("\n! Stop request received. Finishing current task...")
-    STOP_GENERATION = True
-    stop_generate_btn.disabled = True
-
-async def generate_handler(e):
-    global STOP_GENERATION
-    STOP_GENERATION = False
-
-    generate_btn.disabled = True
-    stop_generate_btn.style.display = "block"
-    stop_generate_btn.disabled = False
-    download_link.style.display = "none"
-    generator_output.innerText = "Starting...\n"
-
-    creds = []
-    try:
-        try:
-            num_to_create = int(num_accounts_input.value)
-        except ValueError:
-            num_to_create = 0
-
-        if 1 <= num_to_create <= 50:
-            for i in range(num_to_create):
-                if STOP_GENERATION:
-                    gen_log("Generation stopped by user.")
-                    break
-                gen_log(f"--- Creating account {i+1}/{num_to_create} ---")
-                email, pwd = await create_account()
-                if email and pwd:
-                    creds.append(f"{email}:{pwd}")
-                else:
-                    gen_log(f"Failed to create account {i+1}. Stopping.")
-                    break
-                await asyncio.sleep(1)
-        else:
-            gen_log("Please enter a number between 1 and 50.")
-    finally:
-        if creds:
-            gen_log(f"\nGeneration finished. Total accounts: {len(creds)}")
-            content = "\n".join(creds)
-            filename = f"accounts_{datetime.now().strftime('%Y-%m-%d')}.txt"
-            blob = Blob.new([content], { "type": "text/plain;charset=utf-8" })
-            download_link.href = URL.createObjectURL(blob)
-            download_link.download = filename
-            download_link.style.display = "block"
-        else:
-            gen_log("\nNo accounts were generated successfully.")
-
-        generate_btn.disabled = False
-        stop_generate_btn.style.display = "none"
-
-# ================================================
-# == Mail Checker Logic
-# ================================================
-def get_token(email, password):
-    try:
-        r = requests.post(f"{BASE_URL}/token", json={"address": email, "password": password})
-        if r.status_code == 200:
-            return r.json().get("token")
-        else:
-            checker_output.innerHTML = f"<p>Login failed: {r.status_code} - {r.text}</p>"
-            return None
-    except Exception as e:
-        checker_output.innerHTML = f"<p>Exception during login: {e}</p>"
-        return None
-
-async def fetch_and_display_messages(token):
-    checker_output.innerHTML = "<p>Checking for messages...</p>"
-    headers = {"Authorization": f"Bearer {token}"}
-    try:
-        def fetch_all_messages():
-            list_r = requests.get(f"{BASE_URL}/messages", headers=headers)
-            list_r.raise_for_status()
-            messages = list_r.json().get("hydra:member", [])
-
-            full_messages = []
-            for msg_summary in messages:
-                msg_r = requests.get(f"{BASE_URL}/messages/{msg_summary['id']}", headers=headers)
-                if msg_r.status_code == 200:
-                    full_messages.append(msg_r.json())
-            return full_messages
-
-        all_messages = await asyncio.to_thread(fetch_all_messages)
-
-        if not all_messages:
-            checker_output.innerHTML = "<p>The inbox is empty.</p>"
-            return
-
-        checker_output.innerHTML = ""
-        for msg_data in all_messages:
-            msg_div = document.createElement('div')
-            msg_div.className = 'message-box'
-            subject = msg_data.get("subject", "(No Subject)")
-            from_addr = msg_data.get("from", {}).get("address", "Unknown")
-            date = msg_data.get("createdAt", "Unknown Date")
-            raw_text = msg_data.get("text", "No text content.")
-            linked_text = linkify(raw_text)
-
-            html_content = f"<b>From:</b> {html.escape(from_addr)}<br>"
-            html_content += f"<b>Subject:</b> {html.escape(subject)}<br>"
-            html_content += f"<b>Date:</b> {html.escape(date.split('T')[0])}<br>"
-            html_content += f"<pre>{linked_text}</pre>"
-            msg_div.innerHTML = html_content
-
-            checker_output.appendChild(msg_div)
-    except Exception as e:
-        checker_output.innerHTML = f"<p>Error fetching messages: {e}</p>"
-
-async def login_handler(e):
-    email = email_input.value.strip()
-    password = password_input.value.strip()
-    if not email or not password:
-        checker_output.innerHTML = "<p>Please enter email and password.</p>"
+        update_status("Network Error: Could not fetch domain.")
+        btn_generate.style.display = "block"
+        btn_generate.disabled = False
         return
 
-    checker_output.innerHTML = "<p>Logging in...</p>"
-    login_btn.disabled = True
+    user, password = make_credentials()
+    address = f"{user}@{domain}"
+    
     try:
-        token = await asyncio.to_thread(get_token, email, password)
-        if token:
-            await fetch_and_display_messages(token)
-    finally:
-        login_btn.disabled = False
+        r = await asyncio.to_thread(
+            requests.post,
+            f"{BASE_URL}/accounts",
+            json={"address": address, "password": password}
+        )
+        if r.status_code in (200, 201):
+            current_email = address
+            current_password = password
+            update_status(f"{address}")
+            
+            # Show next step buttons
+            btn_copy_email.innerText = "Copy Email"
+            btn_copy_email.style.display = "block"
+            btn_check.style.display = "block"
+        else:
+            update_status(f"Failed to create: {r.status_code}")
+            btn_generate.style.display = "block"
+    except Exception as e:
+        update_status("API Error during generation.")
+        btn_generate.style.display = "block"
+        
+    btn_generate.disabled = False
 
-# --- Assign Event Handlers ---
-generate_btn.onclick = generate_handler
-stop_generate_btn.onclick = stop_generator_handler
-login_btn.onclick = login_handler
+
+def copy_email_handler(e):
+    window.copyToClipboard(current_email)
+    btn_copy_email.innerText = "Copied!"
+    
+async def check_handler(e):
+    global current_token, stop_polling
+    hide_all_buttons()
+    update_status("Logging in...")
+    
+    try:
+        r = await asyncio.to_thread(
+            requests.post,
+            f"{BASE_URL}/token",
+            json={"address": current_email, "password": current_password}
+        )
+        if r.status_code == 200:
+            current_token = r.json().get("token")
+            stop_polling = False
+            update_status("Waiting for email... (Refreshing every 5s)")
+            asyncio.create_task(poll_for_email())
+        else:
+            update_status("Login failed. Try generating again.")
+            btn_generate.style.display = "block"
+    except Exception as e:
+        update_status("Exception during login.")
+        btn_generate.style.display = "block"
+
+async def poll_for_email():
+    global stop_polling, current_code
+    headers = {"Authorization": f"Bearer {current_token}"}
+    
+    while not stop_polling:
+        try:
+            # 1. Check for messages
+            def fetch_msg_list():
+                r = requests.get(f"{BASE_URL}/messages", headers=headers)
+                return r.json().get("hydra:member", []) if r.status_code == 200 else []
+                
+            messages = await asyncio.to_thread(fetch_msg_list)
+            
+            if messages:
+                msg_id = messages[0]['id']
+                
+                # 2. Fetch full message content
+                def fetch_full_msg():
+                    r = requests.get(f"{BASE_URL}/messages/{msg_id}", headers=headers)
+                    return r.json() if r.status_code == 200 else {}
+                    
+                full_msg = await asyncio.to_thread(fetch_full_msg)
+                
+                if full_msg:
+                    subject = full_msg.get("subject", "")
+                    
+                    # Extract first 6 numbers from the subject
+                    # re.sub removes non-digits. We take up to the first 6 characters.
+                    all_digits = re.sub(r'\D', '', subject)
+                    current_code = all_digits[:6] if len(all_digits) >= 6 else all_digits
+                    
+                    raw_text = full_msg.get("text", "No text content.")
+                    html_display = f"From: {html.escape(full_msg.get('from', {}).get('address', 'Unknown'))}\n"
+                    html_display += f"Subject: {html.escape(subject)}\n\n"
+                    html_display += html.escape(raw_text)
+                    raw_email_data.innerText = html_display
+                    
+                    update_status("Email Received!")
+                    stop_polling = True
+                    show_post_receive_buttons()
+                    break
+                    
+        except Exception as e:
+            print(f"Polling error: {e}")
+            
+        if not stop_polling:
+            await asyncio.sleep(5)
+
+def show_post_receive_buttons():
+    hide_all_buttons()
+    btn_copy_code.innerText = f"Copy Code ({current_code})" if current_code else "Copy Code (Not Found)"
+    btn_copy_pass.innerText = "Copy Pass"
+    btn_show_email.innerText = "Show Full Email"
+    
+    btn_copy_code.style.display = "block"
+    btn_copy_pass.style.display = "block"
+    btn_show_email.style.display = "block"
+
+def check_for_generate_more():
+    if copied_code and copied_pass:
+        btn_generate_more.style.display = "block"
+
+def copy_code_handler(e):
+    global copied_code
+    if current_code:
+        window.copyToClipboard(current_code)
+    else:
+        window.copyToClipboard("No code found")
+    btn_copy_code.innerText = "Copied Code!"
+    copied_code = True
+    check_for_generate_more()
+
+def copy_pass_handler(e):
+    global copied_pass
+    window.copyToClipboard(current_password)
+    btn_copy_pass.innerText = "Copied Pass!"
+    copied_pass = True
+    check_for_generate_more()
+
+def show_email_handler(e):
+    if email_content.style.display == "none":
+        email_content.style.display = "block"
+        btn_show_email.innerText = "Hide Full Email"
+    else:
+        email_content.style.display = "none"
+        btn_show_email.innerText = "Show Full Email"
+
+# --- Assign Event Listeners ---
+btn_generate.onclick = generate_handler
+btn_copy_email.onclick = copy_email_handler
+btn_check.onclick = check_handler
+btn_copy_code.onclick = copy_code_handler
+btn_copy_pass.onclick = copy_pass_handler
+btn_show_email.onclick = show_email_handler
+btn_generate_more.onclick = generate_handler # Restarts cycle
