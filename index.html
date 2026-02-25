@@ -10,45 +10,31 @@
 </head>
 <body>
 
-    <div id="page-home" class="page active">
-        <div class="content">
-            <div class="logo">#1 Trusted Source</div>
-            <h1>TempMail Service</h1>
-            <p>RBshops on Top!</p>
-            <div class="button-group">
-                <a href="#page-generator" class="nav-btn" onclick="showPage('page-generator')">Generate</a>
-                <a href="#page-checker" class="nav-btn" onclick="showPage('page-checker')">Check</a>
-            </div>
-        </div>
-    </div>
-
-    <div id="page-generator" class="page page-inner">
-        <header class="header">
-            <a href="#page-home" class="back-btn" onclick="showPage('page-home')">&larr; Back</a>
-            <h1>Generator</h1>
+    <div id="page-app" class="page active">
+        <header class="header app-header">
+            <div class="logo-small">#1 Trusted Source</div>
+            <h1>TempMail Auto-Checker</h1>
         </header>
-        <div class="container">
-            <input type="number" id="num-accounts" value="1" min="1" max="50" placeholder="Number of accounts (1-50)">
-            <div class="generator-buttons">
-                <button id="generate-btn" class="btn">Generate Accounts</button>
-                <button id="stop-generate-btn" class="btn" style="display: none;">Stop</button>
-            </div>
-            <a id="download-link" style="display:none;"><button class="btn download-btn">Download Credentials</button></a>
-            <pre id="generator-output">Logs will appear here...</pre>
-        </div>
-    </div>
 
-    <div id="page-checker" class="page page-inner">
-        <header class="header">
-            <a href="#page-home" class="back-btn" onclick="showPage('page-home')">&larr; Back</a>
-            <h1>Checker</h1>
-        </header>
         <div class="container">
-            <input type="text" id="email" placeholder="Email Address" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-            <input type="password" id="password" placeholder="Password">
-            <button id="login-btn" class="btn">Login and Check</button>
-            <div id="checker-output">
-                <p style="color: #6c757d; text-align: center;">Messages will appear here.</p>
+            <div id="status-box" class="message-box status-center">
+                <b>Ready. Click Generate to start.</b>
+            </div>
+
+            <div class="button-stack">
+                <button id="btn-generate" class="btn">Generate Account</button>
+                <button id="btn-copy-email" class="btn" style="display: none;">Copy Email</button>
+                <button id="btn-check" class="btn" style="display: none;">Check Inbox</button>
+                
+                <button id="btn-copy-code" class="btn" style="display: none;">Copy Code</button>
+                <button id="btn-copy-pass" class="btn" style="display: none;">Copy Pass</button>
+                <button id="btn-show-email" class="btn" style="display: none;">Show Full Email</button>
+                
+                <button id="btn-generate-more" class="btn download-btn" style="display: none;">Generate More</button>
+            </div>
+
+            <div id="email-content" style="display: none;">
+                <pre id="raw-email-data"></pre>
             </div>
         </div>
     </div>
